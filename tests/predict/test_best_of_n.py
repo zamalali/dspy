@@ -132,3 +132,38 @@ def test_best_of_n_all_failures_raises_error():
 
     with pytest.raises(ValueError, match="Always fails"):
         best_of_n(question="Will all fail")
+
+def test_best_of_n_zero_n():
+    """Test that N=0 raises a ValueError in __init__."""
+    predict = DummyModule("question -> answer", lambda self, **kwargs: self.predictor(**kwargs))
+    with pytest.raises(ValueError, match="N must be greater than 0"):
+        BestOfN(module=predict, N=0, reward_fn=lambda _, __: 1.0, threshold=1.0)
+
+
+def test_best_of_n_interleaved_success_and_failures():
+    """Test that fail_count correctly tracks only failures, not all attempts.
+    
+    If N=5 and fail_count=3, and attempts 0, 2, and 3 fail while attempt 1 succeeds
+    (but doesn't meet the threshold), the loop should continue to attempt 4
+    because error_count=3 is not > fail_count=3.
+    """
+    lm = DummyLM([{"answer": "a"}] * 5)
+    dspy.configure(lm=lm)
+    call_count = [0]
+
+    def interleaved_fail(self, **kwargs):
+        current_call = call_count[0]
+        call_count[0] += 1
+        if current_call in [0, 2, 3]:
+            raise ValueError(f"Intentional failure on call {current_call}")
+        return self.predictor(**kwargs)
+
+    predict = DummyModule("question -> answer", interleaved_fail)
+    
+
+    best_of_n = BestOfN(module=predict, N=5, reward_fn=lambda _, __: 0.0, threshold=1.0, fail_count=3)
+
+    result = best_of_n(question="Interleaved")
+    
+    assert result is not None, "Should complete successfully and return the best prediction"
+    assert call_count[0] == 5, "Should have made exactly 5 attempts"

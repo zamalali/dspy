@@ -49,6 +49,8 @@ class BestOfN(Module):
             # Returns: Brussels
             ```
         """
+        if N <= 0:
+                raise ValueError(f"BestOfN: N must be greater than 0, got {N}")
         self.module = module
         self.reward_fn = lambda *args: reward_fn(*args)  # to prevent this from becoming a parameter
         self.threshold = threshold
@@ -87,11 +89,11 @@ class BestOfN(Module):
                 last_exception = e
                 logger.warning(f"BestOfN: Attempt {idx + 1}/{self.N} failed with rollout id {rid}: {e}")
                 if error_count > self.fail_count:
-                    raise e
+                    raise 
 
         if best_pred is None:
             if last_exception is not None:
-                raise last_exception
+                raise last_exception.with_traceback(last_exception.__traceback__)
             raise RuntimeError(f"BestOfN: All {self.N} attempts failed. No successful prediction was obtained.")
 
         if best_trace:
